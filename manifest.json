@@ -1,0 +1,14 @@
+{
+  "name": "Fichas de Sombras",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "description": "Fichas de personagem de Sombras de Victoria (City of Mist) compartilhadas na sala",
+  "author": "Cley",
+  "action": {
+    "title": "Fichas de Sombras",
+    "icon": "/icon.svg",
+    "popover": "/index.html",
+    "width": 340,
+    "height": 480
+  }
+}
