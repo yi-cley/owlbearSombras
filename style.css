@@ -11,23 +11,23 @@
   --ink: #2a2318;
   --ink-dim: #6e6248;
 
-  /* Vertente = Mythos (fotografia sépia) */
-  --vertente: #7a5230;
-  --vertente-dim: #a9855c;
-  --vertente-bg: rgba(122, 82, 48, 0.10);
+  /* Vertente = Mythos, o lado místico/estranho (verde-absinto, "bonito e amaldiçoado") */
+  --vertente: #2f8f5e;
+  --vertente-dim: #5fae82;
+  --vertente-bg: rgba(47, 143, 94, 0.10);
 
-  /* Cerne = Logos (carimbo de dossiê) */
-  --cerne: #2f4a44;
-  --cerne-dim: #5c7d75;
-  --cerne-bg: rgba(47, 74, 68, 0.10);
+  /* Cerne = Logos, o lado comum/comunitário (sépia quente, tom "foto de família") */
+  --cerne: #7a5230;
+  --cerne-dim: #a9855c;
+  --cerne-bg: rgba(122, 82, 48, 0.10);
 
   /* fio vermelho / selo / perigo */
   --string: #8f2a1e;
   --string-dark: #5c150c;
 
   /* versões claras de vertente/cerne, só pra texto direto sobre a cortiça escura */
-  --vertente-glow: #c99a5c;
-  --cerne-glow: #6fa89a;
+  --vertente-glow: #8fd6ac;
+  --cerne-glow: #c99a5c;
 }
 
 * { box-sizing: border-box; }
