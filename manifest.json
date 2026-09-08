@@ -6,8 +6,8 @@
   "author": "Cley",
   "action": {
     "title": "Fichas de Sombras",
-    "icon": "/icon.svg",
-    "popover": "/index.html",
+    "icon": "icon.svg",
+    "popover": "index.html",
     "width": 340,
     "height": 480
   }
