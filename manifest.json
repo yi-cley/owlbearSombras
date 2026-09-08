@@ -2,12 +2,12 @@
   "name": "Fichas de Sombras",
   "version": "1.0.0",
   "manifest_version": 1,
-  "description": "Fichas de personagem de Sombras de Victoria (City of Mist)",
+  "description": "Fichas de personagem de Sombras de Victoria (City of Mist) compartilhadas na sala",
   "author": "Cley",
   "action": {
     "title": "Fichas de Sombras",
-    "icon": "icon.svg",
-    "popover": "index.html",
+    "icon": "https://yi-cley.github.io/owlbearSombras/icon.svg",
+    "popover": "https://yi-cley.github.io/owlbearSombras/index.html",
     "width": 340,
     "height": 480
   }
