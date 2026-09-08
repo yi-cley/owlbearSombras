@@ -1,5 +1,5 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { novaFicha, novoTema, novoRastreio } from "./schema.js";
+import { novaFicha, novoTema, novoRastreio, normalizarFicha, gerarId } from "./schema.js";
 import { carregarFichas, salvarFichas, aoMudarFichas, checarTamanho } from "./storage.js";
 
 const ROSTER_W = 340, ROSTER_H = 480;
@@ -18,7 +18,9 @@ const estado = {
   dados: { chars: {}, ordem: [] },
   atualId: null,
   editando: false,
+  confirmarExclusao: new Set(), // ids de ficha "armados" pra exclusão (2º clique confirma)
 };
+const timersExclusao = new Map();
 
 let salvarTimer = null;
 function agendarSalvar() {
@@ -58,13 +60,14 @@ function renderRoster() {
         const f = estado.dados.chars[id];
         if (!f) return "";
         const temasNomes = f.temas.map((t) => t.titulo).filter(Boolean).join(" · ");
+        const armado = estado.confirmarExclusao.has(id);
         return `
           <div class="roster-item" data-action="abrir" data-id="${id}">
             <div>
               <div class="nome">${esc(f.nome)}</div>
               <div class="sub">${esc(f.jogador || "sem jogador")}${temasNomes ? " — " + esc(temasNomes) : ""}</div>
             </div>
-            <button data-action="excluir" data-id="${id}" class="perigo">✕</button>
+            <button data-action="excluir" data-id="${id}" class="excluir-mini ${armado ? "armado" : ""}">${armado ? "Confirmar?" : "✕"}</button>
           </div>`;
       }).join("")
     : `<div class="vazio">Nenhuma ficha ainda. Crie a primeira abaixo.</div>`;
@@ -73,7 +76,10 @@ function renderRoster() {
     ${avisoTamanhoHtml()}
     <div class="roster-header"><h2>Fichas de Sombras</h2></div>
     <div>${itens}</div>
-    <div class="linha-botoes"><button data-action="nova" class="primario">+ Nova Ficha</button></div>
+    <div class="linha-botoes">
+      <button data-action="nova" class="primario">+ Nova Ficha</button>
+      <button data-action="importar">⇩ Importar JSON</button>
+    </div>
   `;
 }
 
@@ -192,7 +198,10 @@ function renderSheet() {
 
   app.innerHTML = `
     ${avisoTamanhoHtml()}
-    <button class="voltar" data-action="voltar">← Voltar</button>
+    <div class="linha-topo-ficha">
+      <button class="voltar" data-action="voltar">← Voltar</button>
+      <button data-action="exportar" data-id="${f.id}">⇧ Exportar JSON</button>
+    </div>
     <div class="sheet-header">
       <div class="linha">
         <div class="campo"><label>Nome</label><input type="text" value="${esc(f.nome)}" data-field="nome" /></div>
@@ -235,6 +244,65 @@ function renderSheet() {
     ${renderRastreios(f)}
   `;
   ajustarTodasTextareas();
+}
+
+// ---------- exportar / importar ficha em JSON ----------
+function nomeArquivoSeguro(nome) {
+  return (nome || "ficha")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase() || "ficha";
+}
+
+function exportarFicha(ficha) {
+  if (!ficha) return;
+  const json = JSON.stringify(ficha, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${nomeArquivoSeguro(ficha.nome)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function pareceUmaFicha(obj) {
+  return obj && typeof obj === "object" && Array.isArray(obj.temas);
+}
+
+function importarFicha() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.addEventListener("change", () => {
+    const arquivo = input.files[0];
+    if (!arquivo) return;
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      let ficha;
+      try {
+        ficha = JSON.parse(leitor.result);
+      } catch {
+        alert("Esse arquivo não é um JSON válido.");
+        return;
+      }
+      if (!pareceUmaFicha(ficha)) {
+        alert("Esse JSON não parece ser uma ficha de Sombras (faltam os temas).");
+        return;
+      }
+      ficha = normalizarFicha(ficha);
+      ficha.id = gerarId(); // sempre um ID novo, pra nunca colidir com uma ficha existente
+      estado.dados.chars[ficha.id] = ficha;
+      estado.dados.ordem.push(ficha.id);
+      agendarSalvar();
+      irPara("sheet", ficha.id);
+    };
+    leitor.readAsText(arquivo);
+  });
+  input.click();
 }
 
 function render() {
@@ -314,13 +382,37 @@ app.addEventListener("click", (e) => {
     irPara("sheet", ficha.id);
     return;
   }
+  if (acao === "exportar") {
+    exportarFicha(estado.dados.chars[btn.dataset.id]);
+    return;
+  }
+  if (acao === "importar") {
+    importarFicha();
+    return;
+  }
   if (acao === "abrir") { irPara("sheet", btn.dataset.id); return; }
   if (acao === "voltar") { irPara("roster"); return; }
   if (acao === "excluir") {
     e.stopPropagation();
-    if (!confirm("Excluir esta ficha para todos na sala?")) return;
-    delete estado.dados.chars[btn.dataset.id];
-    estado.dados.ordem = estado.dados.ordem.filter((id) => id !== btn.dataset.id);
+    const id = btn.dataset.id;
+    if (!estado.confirmarExclusao.has(id)) {
+      // 1º clique: só arma o botão, ainda não apaga nada
+      estado.confirmarExclusao.add(id);
+      renderRoster();
+      clearTimeout(timersExclusao.get(id));
+      timersExclusao.set(id, setTimeout(() => {
+        estado.confirmarExclusao.delete(id);
+        timersExclusao.delete(id);
+        if (estado.view === "roster") renderRoster();
+      }, 3000));
+      return;
+    }
+    // 2º clique dentro da janela de tempo: apaga de fato
+    clearTimeout(timersExclusao.get(id));
+    timersExclusao.delete(id);
+    estado.confirmarExclusao.delete(id);
+    delete estado.dados.chars[id];
+    estado.dados.ordem = estado.dados.ordem.filter((x) => x !== id);
     agendarSalvar();
     renderRoster();
     return;
