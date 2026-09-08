@@ -4,27 +4,60 @@
 //
 // IMPORTANTE: a metadata da sala tem um limite de 16kB no TOTAL, compartilhado
 // entre TODAS as extensões instaladas na sala — não é um espaço exclusivo nosso.
-// Por isso o schema é compacto e existe um aviso de tamanho (ver checarTamanho).
+//
+// MÉTODO 1 (atual): comprimimos o JSON com lz-string antes de guardar, e
+// descomprimimos ao ler. Isso é um reforço, não uma solução definitiva — se a
+// campanha crescer muito, o próximo passo é mover cada ficha pra metadata do
+// próprio token do personagem na cena (OBR.scene.items), que não tem esse teto
+// compartilhado. Ver README.md, seção "Próximos passos".
 
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
+import LZString from "https://esm.sh/lz-string@1.5.0";
 import { dadosVazios } from "./schema.js";
 
 const CHAVE = "com.sombrasdevictoria.fichas/dados";
-const LIMITE_AVISO_BYTES = 12000; // avisa antes de chegar nos 16kB reais
+const LIMITE_AVISO_BYTES = 12000; // avisa antes de chegar nos 16kB reais (já contando a compressão)
 
 export async function carregarFichas() {
   const metadata = await OBR.room.getMetadata();
-  return metadata[CHAVE] || dadosVazios();
+  const bruto = metadata[CHAVE];
+  if (!bruto) return dadosVazios();
+  try {
+    const json = LZString.decompressFromUTF16(bruto);
+    if (!json) return dadosVazios(); // string vazia/corrompida — não trava o app
+    return JSON.parse(json);
+  } catch (erro) {
+    console.error("Falha ao descomprimir fichas, começando vazio:", erro);
+    return dadosVazios();
+  }
 }
 
 export async function salvarFichas(dados) {
-  await OBR.room.setMetadata({ [CHAVE]: dados });
+  const json = JSON.stringify(dados);
+  const comprimido = LZString.compressToUTF16(json);
+  await OBR.room.setMetadata({ [CHAVE]: comprimido });
 }
 
 export function aoMudarFichas(callback) {
   return OBR.room.onMetadataChange((metadata) => {
-    callback(metadata[CHAVE] || dadosVazios());
+    const bruto = metadata[CHAVE];
+    if (!bruto) return callback(dadosVazios());
+    try {
+      const json = LZString.decompressFromUTF16(bruto);
+      callback(json ? JSON.parse(json) : dadosVazios());
+    } catch (erro) {
+      console.error("Falha ao descomprimir fichas (mudança remota):", erro);
+      callback(dadosVazios());
+    }
   });
+}
+
+// Mede o tamanho REAL que vai ocupar na metadata (já comprimido), não o JSON cru.
+export function checarTamanho(dados) {
+  const json = JSON.stringify(dados);
+  const comprimido = LZString.compressToUTF16(json);
+  const bytes = new Blob([comprimido]).size;
+  return { bytes, perto: bytes > LIMITE_AVISO_BYTES, limite: 16000 };
 }
 
 export function checarTamanho(dados) {
