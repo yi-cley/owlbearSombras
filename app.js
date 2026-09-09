@@ -47,6 +47,20 @@ function agendarSalvar() {
   }, 400);
 }
 
+// Salva imediatamente, sem debounce — usado antes de qualquer transição que
+// redimensiona o popover (ex: abrir uma ficha recém-criada). No celular, esse
+// redimensionamento pode fazer o painel recarregar; se isso acontecer antes do
+// debounce normal disparar, uma ficha recém-criada se perde por nunca ter sido
+// escrita de fato na sala. Salvar antes de navegar evita essa corrida.
+async function salvarAgora() {
+  clearTimeout(salvarTimer);
+  clearTimeout(statusTimer);
+  setStatusSalvamento("● salvando...", "salvando");
+  await salvarFichas(estado.dados);
+  setStatusSalvamento("✓ salvo", "salvo");
+  statusTimer = setTimeout(() => setStatusSalvamento("", ""), 1500);
+}
+
 function esc(s) {
   return (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -440,7 +454,7 @@ function importarFicha() {
     const arquivo = input.files[0];
     if (!arquivo) return;
     const leitor = new FileReader();
-    leitor.onload = () => {
+    leitor.onload = async () => {
       let ficha;
       try {
         ficha = JSON.parse(leitor.result);
@@ -457,7 +471,7 @@ function importarFicha() {
       estado.dados.chars[ficha.id] = ficha;
       estado.dados.ordem.push(ficha.id);
       estado.abaAtual = ficha.tipo === "danger" ? "danger" : "pc";
-      agendarSalvar();
+      await salvarAgora();
       irPara("sheet", ficha.id, true);
     };
     leitor.readAsText(arquivo);
@@ -551,16 +565,20 @@ app.addEventListener("click", (e) => {
     const ficha = novaFicha("Novo Personagem");
     estado.dados.chars[ficha.id] = ficha;
     estado.dados.ordem.push(ficha.id);
-    agendarSalvar();
-    irPara("sheet", ficha.id, true);
+    (async () => {
+      await salvarAgora();
+      irPara("sheet", ficha.id, true);
+    })();
     return;
   }
   if (acao === "nova-ameaca") {
     const ameaca = novaAmeaca("Nova Ameaça");
     estado.dados.chars[ameaca.id] = ameaca;
     estado.dados.ordem.push(ameaca.id);
-    agendarSalvar();
-    irPara("sheet", ameaca.id, true);
+    (async () => {
+      await salvarAgora();
+      irPara("sheet", ameaca.id, true);
+    })();
     return;
   }
   if (acao === "aba") {
