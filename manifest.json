@@ -4,6 +4,7 @@
   "manifest_version": 1,
   "description": "Fichas de personagem de Sombras de Victoria (City of Mist) compartilhadas na sala",
   "author": "Cley",
+  "background_url": "https://yi-cley.github.io/owlbearSombras/background.html",
   "action": {
     "title": "Fichas de Sombras",
     "icon": "https://yi-cley.github.io/owlbearSombras/icon.svg",

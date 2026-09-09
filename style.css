@@ -361,3 +361,75 @@ input.marcada { text-decoration: line-through; color: var(--ink-dim); }
   box-shadow: none;
 }
 .add-mini:hover { color: var(--ink); background: rgba(0, 0, 0, 0.05); }
+
+/* --- abas do roster (Personagens / Ameaças) --- */
+.abas-roster {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.abas-roster button {
+  flex: 1;
+  padding: 6px 8px;
+}
+.abas-roster button.aba-ativa {
+  background: var(--string);
+  border-color: var(--string-dark);
+  color: var(--paper);
+  font-weight: bold;
+}
+
+/* --- vínculo com token --- */
+.vinculo-linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.vinculo-status {
+  font-size: 11px;
+  color: var(--vertente);
+  font-style: italic;
+}
+
+/* --- spectrums (Ameaça) --- */
+.spectrum-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel, var(--paper));
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 1px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.spectrum-item input[type="text"] { flex: 1; min-width: 120px; }
+.spectrum-item input[type="number"] { width: 44px; }
+.spectrum-max, .spectrum-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+/* --- movimentos (Ameaça) --- */
+.movimento-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.movimento-item textarea { flex: 1; }
+.movimento-tipo {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.movimento-tipo.suave { border-left: 3px solid var(--vertente); }
+.movimento-tipo.duro { border-left: 3px solid var(--string); }
+.movimento-tipo.intrusao { border-left: 3px solid var(--cerne); }
+.movimento-tipo.passivo { border-left: 3px solid var(--ink-dim); }
