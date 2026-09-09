@@ -59,3 +59,54 @@ export function checarTamanho(dados) {
   const bytes = new Blob([comprimido]).size;
   return { bytes, perto: bytes > LIMITE_AVISO_BYTES, limite: 16000 };
 }
+
+// --- Presença: quem está vendo/editando qual ficha agora ---
+// Chave separada da dos dados, pequena o bastante pra não precisar comprimir.
+// Cada entrada expira sozinha (PRESENCA_EXPIRA_MS) pra não travar "fantasma"
+// se alguém fechar o navegador sem passar pelo botão Voltar.
+const CHAVE_PRESENCA = "com.sombrasdevictoria.fichas/presenca";
+const PRESENCA_EXPIRA_MS = 15000;
+
+function presencaAtivaDe(bruto) {
+  const agora = Date.now();
+  const ativos = {};
+  for (const [fichaId, info] of Object.entries(bruto || {})) {
+    if (info && agora - info.ts < PRESENCA_EXPIRA_MS) ativos[fichaId] = info;
+  }
+  return ativos;
+}
+
+async function removerMinhasEntradas(presenca, meuId) {
+  const copia = { ...presenca };
+  for (const fid of Object.keys(copia)) {
+    if (copia[fid]?.id === meuId) delete copia[fid];
+  }
+  return copia;
+}
+
+export async function presencaInicial() {
+  const metadata = await OBR.room.getMetadata();
+  return presencaAtivaDe(metadata[CHAVE_PRESENCA]);
+}
+
+export async function marcarPresenca(fichaId) {
+  const meuId = await OBR.player.getId();
+  const meuNome = await OBR.player.getName();
+  const metadata = await OBR.room.getMetadata();
+  let presenca = await removerMinhasEntradas(metadata[CHAVE_PRESENCA] || {}, meuId);
+  presenca[fichaId] = { nome: meuNome, id: meuId, ts: Date.now() };
+  await OBR.room.setMetadata({ [CHAVE_PRESENCA]: presenca });
+}
+
+export async function limparPresenca() {
+  const meuId = await OBR.player.getId();
+  const metadata = await OBR.room.getMetadata();
+  const presenca = await removerMinhasEntradas(metadata[CHAVE_PRESENCA] || {}, meuId);
+  await OBR.room.setMetadata({ [CHAVE_PRESENCA]: presenca });
+}
+
+export function aoMudarPresenca(callback) {
+  return OBR.room.onMetadataChange((metadata) => {
+    callback(presencaAtivaDe(metadata[CHAVE_PRESENCA]));
+  });
+}

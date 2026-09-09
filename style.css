@@ -286,7 +286,42 @@ input::placeholder, textarea::placeholder { color: var(--ink-dim); opacity: 0.7;
 
 .linha-botoes { display: flex; gap: 6px; margin-top: 6px; }
 .voltar { margin-bottom: 0; }
-.linha-topo-ficha { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.linha-topo-ficha { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; }
+.topo-acoes-direita { display: flex; gap: 6px; }
+
+/* indicador de salvamento */
+.status-salvamento {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--paper-dark);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.status-salvamento.salvando { opacity: 1; color: #d99a8a; }
+.status-salvamento.salvo { opacity: 1; color: var(--vertente-glow); }
+
+/* aviso de presença no roster */
+.badge-presenca {
+  font-size: 10px;
+  color: var(--string);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* modo de leitura: campos e botões da ficha ficam bloqueados */
+.ficha-corpo.bloqueada input,
+.ficha-corpo.bloqueada textarea,
+.ficha-corpo.bloqueada button,
+.ficha-corpo.bloqueada .pip {
+  pointer-events: none;
+}
+.ficha-corpo.bloqueada input,
+.ficha-corpo.bloqueada textarea {
+  background: transparent;
+  border-bottom-style: dotted;
+  opacity: 0.85;
+}
 
 /* --- cabeçalho de cada tema, com trocar grupo / remover --- */
 .tema-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }

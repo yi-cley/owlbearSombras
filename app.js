@@ -1,6 +1,6 @@
 import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { novaFicha, novoTema, novoRastreio, normalizarFicha, gerarId } from "./schema.js";
-import { carregarFichas, salvarFichas, aoMudarFichas, checarTamanho } from "./storage.js";
+import { carregarFichas, salvarFichas, aoMudarFichas, checarTamanho, marcarPresenca, limparPresenca, aoMudarPresenca, presencaInicial } from "./storage.js";
 
 const ROSTER_W = 340, ROSTER_H = 480;
 const SHEET_W = 900, SHEET_H = 680;
@@ -19,13 +19,29 @@ const estado = {
   atualId: null,
   editando: false,
   confirmarExclusao: new Set(), // ids de ficha "armados" pra exclusão (2º clique confirma)
+  modoEdicao: false,            // false = só leitura; true = campos liberados
+  presencaAtiva: {},            // { fichaId: { nome, id, ts } } — quem está vendo o quê agora
 };
 const timersExclusao = new Map();
+let heartbeatPresenca = null;
 
 let salvarTimer = null;
+let statusTimer = null;
+function setStatusSalvamento(texto, classe) {
+  const el = document.getElementById("status-salvamento");
+  if (!el) return; // só existe na tela de ficha
+  el.textContent = texto;
+  el.className = "status-salvamento" + (classe ? " " + classe : "");
+}
 function agendarSalvar() {
   clearTimeout(salvarTimer);
-  salvarTimer = setTimeout(() => salvarFichas(estado.dados), 400);
+  clearTimeout(statusTimer);
+  setStatusSalvamento("● salvando...", "salvando");
+  salvarTimer = setTimeout(async () => {
+    await salvarFichas(estado.dados);
+    setStatusSalvamento("✓ salvo", "salvo");
+    statusTimer = setTimeout(() => setStatusSalvamento("", ""), 1500);
+  }, 400);
 }
 
 function esc(s) {
@@ -61,11 +77,13 @@ function renderRoster() {
         if (!f) return "";
         const temasNomes = f.temas.map((t) => t.titulo).filter(Boolean).join(" · ");
         const armado = estado.confirmarExclusao.has(id);
+        const presenca = estado.presencaAtiva[id];
         return `
           <div class="roster-item" data-action="abrir" data-id="${id}">
             <div>
               <div class="nome">${esc(f.nome)}</div>
               <div class="sub">${esc(f.jogador || "sem jogador")}${temasNomes ? " — " + esc(temasNomes) : ""}</div>
+              ${presenca ? `<div class="badge-presenca">✎ ${esc(presenca.nome)} está aqui agora</div>` : ""}
             </div>
             <button data-action="excluir" data-id="${id}" class="excluir-mini ${armado ? "armado" : ""}">${armado ? "Confirmar?" : "✕"}</button>
           </div>`;
@@ -200,8 +218,13 @@ function renderSheet() {
     ${avisoTamanhoHtml()}
     <div class="linha-topo-ficha">
       <button class="voltar" data-action="voltar">← Voltar</button>
-      <button data-action="exportar" data-id="${f.id}">⇧ Exportar JSON</button>
+      <span id="status-salvamento" class="status-salvamento"></span>
+      <div class="topo-acoes-direita">
+        <button data-action="alternar-edicao">${estado.modoEdicao ? "🔒 Bloquear edição" : "✏️ Editar"}</button>
+        <button data-action="exportar" data-id="${f.id}">⇧ Exportar JSON</button>
+      </div>
     </div>
+    <div class="ficha-corpo ${estado.modoEdicao ? "" : "bloqueada"}">
     <div class="sheet-header">
       <div class="linha">
         <div class="campo"><label>Nome</label><input type="text" value="${esc(f.nome)}" data-field="nome" /></div>
@@ -242,6 +265,7 @@ function renderSheet() {
 
     <div class="secao-titulo"><h3>Tracking Cards</h3></div>
     ${renderRastreios(f)}
+    </div>
   `;
   ajustarTodasTextareas();
 }
@@ -298,7 +322,7 @@ function importarFicha() {
       estado.dados.chars[ficha.id] = ficha;
       estado.dados.ordem.push(ficha.id);
       agendarSalvar();
-      irPara("sheet", ficha.id);
+      irPara("sheet", ficha.id, true);
     };
     leitor.readAsText(arquivo);
   });
@@ -310,12 +334,23 @@ function render() {
   else renderSheet();
 }
 
-async function irPara(view, id) {
+async function irPara(view, id, modoEdicaoInicial) {
+  // saindo de uma ficha: para o heartbeat e libera minha presença
+  if (estado.view === "sheet" && estado.atualId && (view !== "sheet" || id !== estado.atualId)) {
+    clearInterval(heartbeatPresenca);
+    heartbeatPresenca = null;
+    limparPresenca().catch(() => {});
+  }
+
   estado.view = view;
   estado.atualId = id || null;
+  estado.modoEdicao = view === "sheet" ? !!modoEdicaoInicial : false;
+
   if (view === "sheet") {
     await OBR.action.setWidth(SHEET_W);
     await OBR.action.setHeight(SHEET_H);
+    marcarPresenca(id).catch(() => {});
+    heartbeatPresenca = setInterval(() => marcarPresenca(id).catch(() => {}), 6000);
   } else {
     await OBR.action.setWidth(ROSTER_W);
     await OBR.action.setHeight(ROSTER_H);
@@ -379,7 +414,7 @@ app.addEventListener("click", (e) => {
     estado.dados.chars[ficha.id] = ficha;
     estado.dados.ordem.push(ficha.id);
     agendarSalvar();
-    irPara("sheet", ficha.id);
+    irPara("sheet", ficha.id, true);
     return;
   }
   if (acao === "exportar") {
@@ -388,6 +423,11 @@ app.addEventListener("click", (e) => {
   }
   if (acao === "importar") {
     importarFicha();
+    return;
+  }
+  if (acao === "alternar-edicao") {
+    estado.modoEdicao = !estado.modoEdicao;
+    renderSheet();
     return;
   }
   if (acao === "abrir") { irPara("sheet", btn.dataset.id); return; }
@@ -518,9 +558,24 @@ app.addEventListener("input", (e) => {
 // ---------- inicialização ----------
 OBR.onReady(async () => {
   estado.dados = await carregarFichas();
+  estado.presencaAtiva = await presencaInicial();
   render();
+
   aoMudarFichas((novosDados) => {
     estado.dados = novosDados;
     if (!estado.editando) render();
   });
+
+  aoMudarPresenca((novaPresenca) => {
+    estado.presencaAtiva = novaPresenca;
+    if (estado.view === "roster") renderRoster();
+  });
+});
+
+// Melhor esforço: libera minha presença se a extensão for fechada sem
+// passar pelo botão Voltar. Não é garantido (a página pode fechar antes da
+// mensagem chegar), por isso a expiração automática de 15s continua sendo
+// a rede de segurança de verdade.
+window.addEventListener("pagehide", () => {
+  if (estado.view === "sheet" && estado.atualId) limparPresenca().catch(() => {});
 });
