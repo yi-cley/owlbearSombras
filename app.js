@@ -220,7 +220,7 @@ function renderSheet() {
       <button class="voltar" data-action="voltar">← Voltar</button>
       <span id="status-salvamento" class="status-salvamento"></span>
       <div class="topo-acoes-direita">
-        <button data-action="alternar-edicao">${estado.modoEdicao ? "🔒 Bloquear edição" : "✏️ Editar"}</button>
+        <button data-action="alternar-edicao">${estado.modoEdicao ? "Bloquear edição" : "Editar"}</button>
         <button data-action="exportar" data-id="${f.id}">⇧ Exportar JSON</button>
       </div>
     </div>
