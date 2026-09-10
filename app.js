@@ -478,8 +478,16 @@ function renderSheet() {
           <label>Build-Up</label>
           ${renderTrilha(f.buildUp, 4, "buildUp", "")}
         </div>
-        <div class="campo"><label>Nemesis</label><input type="text" value="${esc(f.nemesis)}" data-field="nemesis" /></div>
+        <div class="campo">
+          <label>Fluxo (Juice)</label>
+          <div class="contador">
+            <button data-action="fluxo-menos">−</button>
+            <span class="contador-valor">${f.fluxo || 0}</span>
+            <button data-action="fluxo-mais">+</button>
+          </div>
+        </div>
       </div>
+      <div class="campo"><label>Nemesis</label><input type="text" value="${esc(f.nemesis)}" data-field="nemesis" /></div>
       ${renderVinculoToken(f)}
     </div>
 
@@ -680,6 +688,18 @@ app.addEventListener("click", (e) => {
   }
   if (acao === "ver-moves") {
     irPara("moves");
+    return;
+  }
+  if (acao === "fluxo-mais") {
+    f.fluxo = (f.fluxo || 0) + 1;
+    agendarSalvar();
+    renderSheet();
+    return;
+  }
+  if (acao === "fluxo-menos") {
+    f.fluxo = Math.max(0, (f.fluxo || 0) - 1);
+    agendarSalvar();
+    renderSheet();
     return;
   }
   if (acao === "exportar") {

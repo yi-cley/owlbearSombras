@@ -68,6 +68,7 @@ export function novaFicha(nome) {
     crew: [],          // lista de membros da crew
     storyTags: [],     // lista de story tags
     buildUp: 0,        // trilha Build-Up, 0-4
+    fluxo: 0,          // Juice — recurso que os jogadores tendem a esquecer de rastrear
     momentos: [],      // Moments of Evolution: [{ texto, feito }]
     nemesis: "",
     temas: [
@@ -163,6 +164,7 @@ export function normalizarFicha(f) {
   });
   if (!Array.isArray(f.momentos)) f.momentos = [];
   if (typeof f.buildUp !== "number") f.buildUp = 0;
+  if (typeof f.fluxo !== "number") f.fluxo = 0;
 
   return f;
 }
