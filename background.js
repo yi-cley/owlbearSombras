@@ -11,9 +11,10 @@ import { carregarFichas, salvarFichas, aoMudarFichas } from "./storage.js";
 import { configurarMenuContexto, abrirPopoverRevelar, sincronizarLabel } from "./mapa.js";
 
 async function sincronizarTodosOsLabels(dados) {
+  const vinculadas = Object.values(dados.chars).filter((f) => f.tokenId);
+  console.log("[Fichas de Sombras] background: resync disparado —", vinculadas.length, "ficha(s) vinculada(s) a um token");
   let mudouAlgumaCoisa = false;
-  for (const ficha of Object.values(dados.chars)) {
-    if (!ficha.tokenId) continue;
+  for (const ficha of vinculadas) {
     const resultado = await sincronizarLabel(ficha);
     if (resultado?.mudou) {
       ficha.labelItemId = resultado.labelItemId;

@@ -66,21 +66,31 @@ function textoDoLabel(ficha) {
 // Cria/atualiza/remove o balão conforme o estado atual dos rastreios revelados.
 // Retorna { mudou, labelItemId } — quem chamar deve salvar labelItemId na
 // ficha quando mudou === true.
+const LOG = (...args) => console.log("[Fichas de Sombras]", ...args);
+
 export async function sincronizarLabel(ficha) {
   if (!ficha?.tokenId) return { mudou: false };
 
   try {
     const tokens = await OBR.scene.items.getItems([ficha.tokenId]);
     const token = tokens[0];
-    if (!token) return { mudou: false }; // token não existe nesta cena agora
+    if (!token) {
+      LOG("sincronizarLabel: token não encontrado na cena atual", { fichaId: ficha.id, tokenId: ficha.tokenId });
+      return { mudou: false };
+    }
 
     const texto = textoDoLabel(ficha);
+    LOG("sincronizarLabel: estado ANTES", {
+      fichaId: ficha.id, nome: ficha.nome, labelItemIdAtual: ficha.labelItemId, textoCalculado: texto || "(vazio)"
+    });
 
     if (!texto) {
       if (ficha.labelItemId) {
         await OBR.scene.items.deleteItems([ficha.labelItemId]).catch(() => {});
+        LOG("sincronizarLabel: DEPOIS — balão removido (texto vazio)", { fichaId: ficha.id, labelRemovido: ficha.labelItemId });
         return { mudou: true, labelItemId: null };
       }
+      LOG("sincronizarLabel: DEPOIS — nada a fazer (sem texto, sem balão)", { fichaId: ficha.id });
       return { mudou: false };
     }
 
@@ -93,8 +103,10 @@ export async function sincronizarLabel(ficha) {
             item.position = { x: token.position.x + 90, y: token.position.y };
           }
         });
+        LOG("sincronizarLabel: DEPOIS — balão existente atualizado", { fichaId: ficha.id, labelItemId: ficha.labelItemId });
         return { mudou: false };
       }
+      LOG("sincronizarLabel: labelItemId salvo não existe mais na cena, vou recriar", { fichaId: ficha.id, labelItemIdAntigo: ficha.labelItemId });
     }
 
     const item = buildLabel()
@@ -105,6 +117,7 @@ export async function sincronizarLabel(ficha) {
       .disableHit(true)
       .build();
     await OBR.scene.items.addItems([item]);
+    LOG("sincronizarLabel: DEPOIS — balão novo criado", { fichaId: ficha.id, labelItemIdNovo: item.id });
     return { mudou: true, labelItemId: item.id };
   } catch (erro) {
     console.error("Falha ao sincronizar balão do token:", erro);
@@ -114,7 +127,13 @@ export async function sincronizarLabel(ficha) {
 
 export async function removerLabel(ficha) {
   if (ficha?.labelItemId) {
-    try { await OBR.scene.items.deleteItems([ficha.labelItemId]); } catch {}
+    LOG("removerLabel: apagando balão", { fichaId: ficha.id, labelItemId: ficha.labelItemId });
+    try {
+      await OBR.scene.items.deleteItems([ficha.labelItemId]);
+      LOG("removerLabel: balão apagado com sucesso", { fichaId: ficha.id });
+    } catch (erro) {
+      LOG("removerLabel: falha ao apagar", { fichaId: ficha.id, erro });
+    }
   }
 }
 

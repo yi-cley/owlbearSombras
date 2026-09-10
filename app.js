@@ -841,7 +841,7 @@ app.addEventListener("click", (e) => {
       }
       await vincularToken(f.id, tokenId);
       f.tokenId = tokenId;
-      agendarSalvar();
+      await salvarAgora();
       renderSheet();
     })();
     return;
@@ -852,7 +852,7 @@ app.addEventListener("click", (e) => {
       await desvincularToken(f.tokenId);
       f.tokenId = null;
       f.labelItemId = null;
-      agendarSalvar();
+      await salvarAgora();
       renderSheet();
     })();
     return;
