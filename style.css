@@ -433,3 +433,65 @@ input.marcada { text-decoration: line-through; color: var(--ink-dim); }
 .movimento-tipo.duro { border-left: 3px solid var(--string); }
 .movimento-tipo.intrusao { border-left: 3px solid var(--cerne); }
 .movimento-tipo.passivo { border-left: 3px solid var(--ink-dim); }
+
+/* --- botão de remoção inline (tema/spectrum) armado pra 2ª confirmação --- */
+.perigo.armado-inline {
+  background: var(--string);
+  border-color: var(--string-dark);
+  color: var(--paper);
+  font-weight: bold;
+}
+
+/* --- busca do roster --- */
+.busca-roster {
+  margin-bottom: 8px;
+}
+.roster-item.oculto-filtro {
+  display: none;
+}
+
+/* --- cabeçalho do roster com o botão de Moves ao lado do título --- */
+.roster-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* --- referência rápida de moves --- */
+.moves-secao-titulo {
+  color: var(--paper);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 16px 4px 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(232, 220, 189, 0.35);
+}
+.moves-secao-titulo.vertente { color: var(--vertente-glow); border-color: var(--vertente-glow); }
+.moves-secao-titulo.cerne { color: var(--cerne-glow); border-color: var(--cerne-glow); }
+
+.move-card {
+  background: var(--paper);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 1px;
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.2), 0 4px 8px rgba(0, 0, 0, 0.3);
+  padding: 8px 10px;
+  margin: 0 2px 8px;
+}
+.move-titulo {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--string);
+  margin-bottom: 3px;
+}
+.move-gatilho {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+}
+.move-efeito {
+  font-size: 11.5px;
+  line-height: 1.4;
+}

@@ -2,9 +2,11 @@ import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
 import { novaFicha, novoTema, novoRastreio, novoSpectrum, novoMovimento, novaAmeaca, normalizarFicha, gerarId } from "./schema.js";
 import { carregarFichas, salvarFichas, aoMudarFichas, checarTamanho, marcarPresenca, limparPresenca, aoMudarPresenca, presencaInicial } from "./storage.js";
 import { tokenSelecionadoAgora, vincularToken, desvincularToken, removerLabel } from "./mapa.js";
+import { MOVES_ACAO, MOVES_SESSAO, MOVES_VERTENTE, MOVES_CERNE } from "./moves.js";
 
 const ROSTER_W = 340, ROSTER_H = 480;
 const SHEET_W = 900, SHEET_H = 680;
+const MOVES_W = 480, MOVES_H = 640;
 
 // Vertente = Mythos (Mistério / Fade) · Cerne = Logos (Identidade / Crack)
 const CONFIG_GRUPO = {
@@ -24,8 +26,11 @@ const estado = {
   presencaAtiva: {},            // { fichaId: { nome, id, ts } } — quem está vendo o quê agora
   abaAtual: "pc",                // "pc" | "danger" — só relevante pro GM
   souGM: false,
+  confirmarRemocao: new Set(),   // chaves "tema:<id>" / "spectrum:<idx>" armadas pra remoção
+  filtroTexto: "",               // busca do roster
 };
 const timersExclusao = new Map();
+const timersRemocao = new Map();
 let heartbeatPresenca = null;
 
 let salvarTimer = null;
@@ -69,6 +74,27 @@ function fichaAtual() {
   return estado.dados.chars[estado.atualId];
 }
 
+// Padrão genérico de "1º clique arma, 2º confirma" (o mesmo já usado pra
+// excluir ficha), reaproveitado aqui pra remover tema e spectrum. Retorna
+// true se essa foi a confirmação de verdade (quem chamou deve remover);
+// false se só armou o botão (quem chamou deve parar e re-renderizar).
+function confirmarOuArmar(chave) {
+  if (!estado.confirmarRemocao.has(chave)) {
+    estado.confirmarRemocao.add(chave);
+    clearTimeout(timersRemocao.get(chave));
+    timersRemocao.set(chave, setTimeout(() => {
+      estado.confirmarRemocao.delete(chave);
+      timersRemocao.delete(chave);
+      if (estado.view === "sheet") renderSheet();
+    }, 3000));
+    return false;
+  }
+  clearTimeout(timersRemocao.get(chave));
+  timersRemocao.delete(chave);
+  estado.confirmarRemocao.delete(chave);
+  return true;
+}
+
 // ---------- textareas que crescem com o conteúdo ----------
 function ajustarTextarea(el) {
   el.style.height = "auto";
@@ -83,6 +109,31 @@ function avisoTamanhoHtml() {
   const { perto, bytes, limite } = checarTamanho(estado.dados);
   if (!perto) return "";
   return `<div class="aviso">Os dados comprimidos estão em ${bytes} de ${limite} bytes (limite compartilhado com outras extensões da sala). Considere encurtar descrições ou remover fichas não usadas.</div>`;
+}
+
+// ---------- referência rápida de moves ----------
+function renderMoveCard(m) {
+  return `
+    <div class="move-card">
+      <div class="move-titulo">${esc(m.titulo)}</div>
+      <div class="move-gatilho">${esc(m.gatilho)}</div>
+      <div class="move-efeito">${esc(m.efeito)}</div>
+    </div>`;
+}
+function renderMoves() {
+  app.innerHTML = `
+    <div class="linha-topo-ficha">
+      <button class="voltar" data-action="voltar">← Voltar</button>
+    </div>
+    <h2 class="moves-secao-titulo">Moves de Ação</h2>
+    ${MOVES_ACAO.map(renderMoveCard).join("")}
+    <h2 class="moves-secao-titulo">Sessão &amp; Entreatos</h2>
+    ${MOVES_SESSAO.map(renderMoveCard).join("")}
+    <h2 class="moves-secao-titulo vertente">Vertente</h2>
+    ${MOVES_VERTENTE.map(renderMoveCard).join("")}
+    <h2 class="moves-secao-titulo cerne">Cerne</h2>
+    ${MOVES_CERNE.map(renderMoveCard).join("")}
+  `;
 }
 
 // ---------- roster ----------
@@ -106,8 +157,9 @@ function renderRoster() {
         const subtitulo = ehAmeaca ? `Classificação ${f.classificacao || 1}★` : (f.jogador || "sem jogador");
         const armado = estado.confirmarExclusao.has(id);
         const presenca = estado.presencaAtiva[id];
+        const buscaTexto = esc(`${f.nome} ${subtitulo} ${resumo}`.toLowerCase());
         return `
-          <div class="roster-item" data-action="abrir" data-id="${id}">
+          <div class="roster-item" data-action="abrir" data-id="${id}" data-busca-texto="${buscaTexto}">
             <div>
               <div class="nome">${esc(f.nome)}</div>
               <div class="sub">${esc(subtitulo)}${resumo ? " — " + esc(resumo) : ""}</div>
@@ -130,14 +182,29 @@ function renderRoster() {
 
   app.innerHTML = `
     ${avisoTamanhoHtml()}
-    <div class="roster-header"><h2>Fichas de Sombras</h2></div>
+    <div class="roster-header">
+      <h2>Fichas de Sombras</h2>
+      <button data-action="ver-moves" title="Referência rápida de moves">📖 Moves</button>
+    </div>
     ${abas}
+    ${ids.length > 4 ? `<input type="text" class="busca-roster" placeholder="Buscar..." value="${esc(estado.filtroTexto)}" data-busca-roster />` : ""}
     <div>${itens}</div>
     <div class="linha-botoes">
       ${botaoNovo}
       <button data-action="importar">⇩ Importar JSON</button>
     </div>
   `;
+  aplicarFiltroRoster();
+}
+
+// Filtra os itens do roster já renderizados sem re-renderizar (evita perder
+// o foco/cursor de quem está digitando na busca).
+function aplicarFiltroRoster() {
+  const filtro = estado.filtroTexto.trim().toLowerCase();
+  app.querySelectorAll(".roster-item").forEach((el) => {
+    const texto = el.dataset.buscaTexto || "";
+    el.classList.toggle("oculto-filtro", !!filtro && !texto.includes(filtro));
+  });
 }
 
 // ---------- trilha de pips ----------
@@ -184,13 +251,14 @@ function renderTags(temaId, lista, tipo) {
 function renderTema(t) {
   const cfg = CONFIG_GRUPO[t.grupo];
   const outro = t.grupo === "cerne" ? "Vertente" : "Cerne";
+  const armado = estado.confirmarRemocao.has(`tema:${t.id}`);
   return `
     <div class="tema-card ${t.grupo}" data-tema-id="${t.id}">
       <div class="tema-topo">
         <span class="rotulo">${cfg.rotulo}</span>
         <div class="tema-acoes">
           <button data-action="trocar-grupo" data-tema-id="${t.id}" title="Converter para ${outro}">⇄ ${outro}</button>
-          <button data-action="remover-tema" data-tema-id="${t.id}" class="perigo" title="Remover tema">✕</button>
+          <button data-action="remover-tema" data-tema-id="${t.id}" class="perigo ${armado ? "armado-inline" : ""}" title="Remover tema">${armado ? "Confirmar?" : "✕"}</button>
         </div>
       </div>
       <div class="campo">
@@ -268,6 +336,7 @@ function renderVinculoToken(f) {
 
 // ---------- spectrums (Ameaça) ----------
 function renderSpectrum(s, idx) {
+  const armado = estado.confirmarRemocao.has(`spectrum:${idx}`);
   return `
     <div class="spectrum-item">
       <input type="text" value="${esc(s.tag)}" placeholder="ex: convencido-ou-fugiu" data-spectrum-idx="${idx}" data-field="tag" />
@@ -277,7 +346,7 @@ function renderSpectrum(s, idx) {
       <label class="spectrum-check">
         <input type="checkbox" ${s.contagem ? "checked" : ""} data-spectrum-idx="${idx}" data-field="contagem" /> countdown
       </label>
-      <button data-action="remover-spectrum" data-idx="${idx}" class="perigo">✕</button>
+      <button data-action="remover-spectrum" data-idx="${idx}" class="perigo ${armado ? "armado-inline" : ""}">${armado ? "Confirmar?" : "✕"}</button>
     </div>`;
 }
 function renderSpectrums(f) {
@@ -310,7 +379,9 @@ function renderFichaAmeaca(f) {
       <button class="voltar" data-action="voltar">← Voltar</button>
       <span id="status-salvamento" class="status-salvamento"></span>
       <div class="topo-acoes-direita">
+        <button data-action="ver-moves" title="Referência rápida de moves">📖</button>
         <button data-action="alternar-edicao">${estado.modoEdicao ? "🔒 Bloquear edição" : "✏️ Editar"}</button>
+        <button data-action="duplicar" data-id="${f.id}" title="Duplicar ficha">⎘ Duplicar</button>
         <button data-action="exportar" data-id="${f.id}">⇧ Exportar JSON</button>
       </div>
     </div>
@@ -353,6 +424,18 @@ function renderFichaAmeaca(f) {
   ajustarTodasTextareas();
 }
 
+// ---------- Moments of Evolution ----------
+function renderMomentos(f) {
+  const linhas = (f.momentos || []).map((m, idx) => `
+    <div class="tag-item">
+      <input type="checkbox" data-momento-idx="${idx}" data-momento-check ${m.feito ? "checked" : ""} />
+      <input type="text" value="${esc(m.texto)}" placeholder="Descreva o momento de evolução..." class="${m.feito ? "marcada" : ""}" data-momento-idx="${idx}" data-momento-texto />
+      <button data-action="remover-momento" data-idx="${idx}">✕</button>
+    </div>`).join("");
+  return `<div class="lista-tags">${linhas}</div>
+    <button data-action="add-momento" class="add-mini">+ Momento</button>`;
+}
+
 // ---------- ficha completa: Personagem (PC) ----------
 function renderSheet() {
   const f = fichaAtual();
@@ -368,7 +451,9 @@ function renderSheet() {
       <button class="voltar" data-action="voltar">← Voltar</button>
       <span id="status-salvamento" class="status-salvamento"></span>
       <div class="topo-acoes-direita">
+        <button data-action="ver-moves" title="Referência rápida de moves">📖</button>
         <button data-action="alternar-edicao">${estado.modoEdicao ? "🔒 Bloquear edição" : "✏️ Editar"}</button>
+        <button data-action="duplicar" data-id="${f.id}" title="Duplicar ficha">⎘ Duplicar</button>
         <button data-action="exportar" data-id="${f.id}">⇧ Exportar JSON</button>
       </div>
     </div>
@@ -397,6 +482,9 @@ function renderSheet() {
       </div>
       ${renderVinculoToken(f)}
     </div>
+
+    <div class="secao-titulo"><h3>Moments of Evolution</h3></div>
+    ${renderMomentos(f)}
 
     <div class="duas-colunas">
       <div class="coluna">
@@ -481,6 +569,7 @@ function importarFicha() {
 
 function render() {
   if (estado.view === "roster") renderRoster();
+  else if (estado.view === "moves") renderMoves();
   else renderSheet();
 }
 
@@ -501,6 +590,9 @@ async function irPara(view, id, modoEdicaoInicial) {
     await OBR.action.setHeight(SHEET_H);
     marcarPresenca(id).catch(() => {});
     heartbeatPresenca = setInterval(() => marcarPresenca(id).catch(() => {}), 6000);
+  } else if (view === "moves") {
+    await OBR.action.setWidth(MOVES_W);
+    await OBR.action.setHeight(MOVES_H);
   } else {
     await OBR.action.setWidth(ROSTER_W);
     await OBR.action.setHeight(ROSTER_H);
@@ -586,8 +678,28 @@ app.addEventListener("click", (e) => {
     renderRoster();
     return;
   }
+  if (acao === "ver-moves") {
+    irPara("moves");
+    return;
+  }
   if (acao === "exportar") {
     exportarFicha(estado.dados.chars[btn.dataset.id]);
+    return;
+  }
+  if (acao === "duplicar") {
+    const original = estado.dados.chars[btn.dataset.id];
+    if (!original) return;
+    const copia = JSON.parse(JSON.stringify(original));
+    copia.id = gerarId();
+    copia.nome = `${original.nome} (cópia)`;
+    copia.tokenId = null;   // uma cópia não herda o vínculo de token do original
+    copia.labelItemId = null;
+    estado.dados.chars[copia.id] = copia;
+    estado.dados.ordem.push(copia.id);
+    (async () => {
+      await salvarAgora();
+      irPara("sheet", copia.id, true);
+    })();
     return;
   }
   if (acao === "importar") {
@@ -640,7 +752,7 @@ app.addEventListener("click", (e) => {
     return;
   }
   if (acao === "remover-tema") {
-    if (!confirm("Remover este tema?")) return;
+    if (!confirmarOuArmar(`tema:${btn.dataset.temaId}`)) { renderSheet(); return; }
     f.temas = f.temas.filter((t) => t.id !== btn.dataset.temaId);
     agendarSalvar();
     renderSheet();
@@ -685,6 +797,18 @@ app.addEventListener("click", (e) => {
     renderSheet();
     return;
   }
+  if (acao === "add-momento") {
+    f.momentos.push({ texto: "", feito: false });
+    agendarSalvar();
+    renderSheet();
+    return;
+  }
+  if (acao === "remover-momento") {
+    f.momentos.splice(Number(btn.dataset.idx), 1);
+    agendarSalvar();
+    renderSheet();
+    return;
+  }
   if (acao === "vincular-token") {
     (async () => {
       const tokenId = await tokenSelecionadoAgora();
@@ -717,6 +841,7 @@ app.addEventListener("click", (e) => {
     return;
   }
   if (acao === "remover-spectrum") {
+    if (!confirmarOuArmar(`spectrum:${btn.dataset.idx}`)) { renderSheet(); return; }
     f.spectrums.splice(Number(btn.dataset.idx), 1);
     agendarSalvar();
     renderSheet();
@@ -738,6 +863,11 @@ app.addEventListener("click", (e) => {
 
 app.addEventListener("input", (e) => {
   const el = e.target;
+  if (el.dataset.buscaRoster !== undefined) {
+    estado.filtroTexto = el.value;
+    aplicarFiltroRoster();
+    return;
+  }
   if (el.tagName === "TEXTAREA") ajustarTextarea(el);
 
   if (estado.view !== "sheet") return;
@@ -771,6 +901,11 @@ app.addEventListener("input", (e) => {
     agendarSalvar();
     return;
   }
+  if (el.dataset.momentoTexto !== undefined) {
+    f.momentos[Number(el.dataset.momentoIdx)].texto = el.value;
+    agendarSalvar();
+    return;
+  }
   if (el.dataset.lista) {
     f[el.dataset.lista][Number(el.dataset.idx)] = el.value;
     agendarSalvar();
@@ -795,6 +930,12 @@ app.addEventListener("change", (e) => {
   const f = fichaAtual();
   if (!f) return;
 
+  if (el.dataset.momentoCheck !== undefined) {
+    f.momentos[Number(el.dataset.momentoIdx)].feito = el.checked;
+    agendarSalvar();
+    renderSheet();
+    return;
+  }
   if (el.dataset.spectrumIdx !== undefined && el.dataset.field === "contagem") {
     f.spectrums[Number(el.dataset.spectrumIdx)].contagem = el.checked;
     agendarSalvar();
