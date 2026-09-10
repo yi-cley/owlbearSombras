@@ -515,3 +515,14 @@ input.marcada { text-decoration: line-through; color: var(--ink-dim); }
   min-width: 20px;
   text-align: center;
 }
+
+/* --- toggle "mostrar no balão do token" --- */
+.fluxo-mostrar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--ink-dim);
+  margin-top: 5px;
+  cursor: pointer;
+}

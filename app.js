@@ -485,6 +485,9 @@ function renderSheet() {
             <span class="contador-valor">${f.fluxo || 0}</span>
             <button data-action="fluxo-mais">+</button>
           </div>
+          <label class="fluxo-mostrar">
+            <input type="checkbox" ${f.mostrarFluxo ? "checked" : ""} data-field-check="mostrarFluxo" /> mostrar no balão do token
+          </label>
         </div>
       </div>
       <div class="campo"><label>Nemesis</label><input type="text" value="${esc(f.nemesis)}" data-field="nemesis" /></div>
@@ -950,6 +953,11 @@ app.addEventListener("change", (e) => {
   const f = fichaAtual();
   if (!f) return;
 
+  if (el.dataset.fieldCheck) {
+    f[el.dataset.fieldCheck] = el.checked;
+    agendarSalvar();
+    return;
+  }
   if (el.dataset.momentoCheck !== undefined) {
     f.momentos[Number(el.dataset.momentoIdx)].feito = el.checked;
     agendarSalvar();

@@ -69,6 +69,7 @@ export function novaFicha(nome) {
     storyTags: [],     // lista de story tags
     buildUp: 0,        // trilha Build-Up, 0-4
     fluxo: 0,          // Juice — recurso que os jogadores tendem a esquecer de rastrear
+    mostrarFluxo: false, // opcional: só aparece no balão do token quando ligado
     momentos: [],      // Moments of Evolution: [{ texto, feito }]
     nemesis: "",
     temas: [
@@ -165,6 +166,7 @@ export function normalizarFicha(f) {
   if (!Array.isArray(f.momentos)) f.momentos = [];
   if (typeof f.buildUp !== "number") f.buildUp = 0;
   if (typeof f.fluxo !== "number") f.fluxo = 0;
+  if (typeof f.mostrarFluxo !== "boolean") f.mostrarFluxo = false;
 
   return f;
 }

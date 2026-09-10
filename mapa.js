@@ -53,16 +53,13 @@ export async function desvincularToken(tokenId) {
 
 function textoDoLabel(ficha) {
   const linhas = [];
-  if (ficha.tipo === "pc") {
+  if (ficha.tipo === "pc" && ficha.mostrarFluxo) {
     linhas.push(`Fluxo [${ficha.fluxo || 0}]`);
   }
   const revelados = (ficha.rastreios || []).filter((r) => r.revelado && r.tier > 0);
   for (const r of revelados) {
     linhas.push(`${r.tag || "status"} [${r.tier}]`);
   }
-  // Pra PC, sempre mostra pelo menos o Fluxo. Pra Ameaça, só existe balão
-  // se houver algum rastreio revelado (sem Fluxo pra mostrar por padrão).
-  if (ficha.tipo !== "pc" && revelados.length === 0) return "";
   return linhas.join("\n");
 }
 
@@ -91,7 +88,10 @@ export async function sincronizarLabel(ficha) {
       const existentes = await OBR.scene.items.getItems([ficha.labelItemId]);
       if (existentes[0]) {
         await OBR.scene.items.updateItems([ficha.labelItemId], (itens) => {
-          for (const item of itens) item.text.plainText = texto;
+          for (const item of itens) {
+            item.text.plainText = texto;
+            item.position = { x: token.position.x + 90, y: token.position.y };
+          }
         });
         return { mudou: false };
       }
@@ -103,8 +103,6 @@ export async function sincronizarLabel(ficha) {
       .attachedTo(token.id)
       .layer("ATTACHMENT")
       .disableHit(true)
-      .pointerHeight(0)     // sem a "ponta" de balão de fala — vira uma caixa de texto simples
-      .textAlign("left")
       .build();
     await OBR.scene.items.addItems([item]);
     return { mudou: true, labelItemId: item.id };
